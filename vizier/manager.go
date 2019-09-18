@@ -19,18 +19,32 @@ func (m *Manager) CreateState(name string, state IState) error {
 	if _, ok := m.states[name]; ok {
 		return fmt.Errorf("state name already exists: %s", name)
 	}
-
 	m.states[name] = state
 	return nil
+}
+
+func (m *Manager) DeleteState(name string) error {
+	if _, ok := m.states[name]; ok {
+		delete(m.states, name)
+		return nil
+	}
+	return fmt.Errorf("state does not exist: %s", name)
 }
 
 func (m *Manager) CreateEdge(name string) error {
 	if _, ok := m.edges[name]; ok {
 		return fmt.Errorf("edge name already exists: %s", name)
 	}
-
 	m.edges[name] = make(chan interface{})
 	return nil
+}
+
+func (m *Manager) DeleteEdge(name string) error {
+	if _, ok := m.edges[name]; ok {
+		delete(m.edges, name)
+		return nil
+	}
+	return fmt.Errorf("edge does not exist: %s", name)
 }
 
 func (m *Manager) GetEdge(name string) (chan interface{}, error) {
