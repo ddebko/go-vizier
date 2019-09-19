@@ -4,7 +4,7 @@ import "fmt"
 
 type IState interface {
 	Run()
-	Send(interface{})
+	Send(string, interface{})
 }
 
 type State struct {
@@ -22,17 +22,19 @@ func (s *State) Run() {
 	}
 }
 
-func (s *State) Send(name string, payload interface{}) error {
+func (s *State) Send(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
 		edge.recv <- payload
 		return nil
 	}
-	return fmt.Errorf("edge %s not found in state %s", name, s.Name)
+	detail := fmt.Sprintf("failed to send to state: %s on edge: %s", s.Name, name)
+	return NewVizierError(ErrCodeState, ErrMsgEdgeDoesNotExist, detail)
 }
 
-func (s *State) AttachEdge(name string, from chan interface{}, to chan interface{}) error {
+func (s *State) AttachEdge(name string, from chan interface{}, to chan interface{}) vizierErr {
 	if _, ok := s.edges[name]; ok {
-		return fmt.Errorf("edge %s already exists in state %s", name, s.Name)
+		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
+		return NewVizierError(ErrCodeState, ErrMsgEdgeAlreadyExists, detail)
 	}
 	s.edges[name] = Edge{
 		recv: from,
@@ -41,9 +43,10 @@ func (s *State) AttachEdge(name string, from chan interface{}, to chan interface
 	return nil
 }
 
-func (s *State) DetachEdge(name string) error {
+func (s *State) DetachEdge(name string) vizierErr {
 	if _, ok := s.edges[name]; !ok {
-		return fmt.Errorf("edge %s does not exist in state %s", name, s.Name)
+		detail := fmt.Sprintf("failed to detach edge %s from state %s", name, s.Name)
+		return NewVizierError(ErrCodeState, ErrMsgEdgeDoesNotExist, detail)
 	}
 	delete(s.edges, name)
 	return nil

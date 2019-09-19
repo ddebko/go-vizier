@@ -1,66 +1,71 @@
 package vizier
 
-import (
-	"fmt"
-)
-
-// TODO: Create Custom Error Type
 // TODO: Create Logger
 // TODO: Worker Pool Observer To Record Statistics
+// TODO: Detect/Fail On Edge Cycles
 
 type Manager struct {
 	_      struct{}
+	name   string
 	states map[string]IState
 	edges  map[string](chan interface{})
 	Pool   *Pool
 }
 
-func (m *Manager) CreateState(name string, state IState) error {
+func (m *Manager) CreateState(name string, state IState) vizierErr {
 	if _, ok := m.states[name]; ok {
-		return fmt.Errorf("state name already exists: %s", name)
+		return NewVizierError(ErrCodeManager, ErrMsgStateAlreadyExists, name)
 	}
 	m.states[name] = state
 	return nil
 }
 
-func (m *Manager) DeleteState(name string) error {
+func (m *Manager) DeleteState(name string) vizierErr {
 	if _, ok := m.states[name]; ok {
 		delete(m.states, name)
 		return nil
 	}
-	return fmt.Errorf("state does not exist: %s", name)
+	return NewVizierError(ErrCodeManager, ErrMsgStateDoesNotExist, name)
 }
 
-func (m *Manager) CreateEdge(name string) error {
+func (m *Manager) GetState(name string) (IState, vizierErr) {
+	if s, ok := m.states[name]; ok {
+		return s, nil
+	}
+	return nil, NewVizierError(ErrCodeManager, ErrMsgStateDoesNotExist, name)
+}
+
+func (m *Manager) CreateEdge(name string) vizierErr {
 	if _, ok := m.edges[name]; ok {
-		return fmt.Errorf("edge name already exists: %s", name)
+		return NewVizierError(ErrCodeManager, ErrMsgEdgeAlreadyExists, name)
 	}
 	m.edges[name] = make(chan interface{})
 	return nil
 }
 
-func (m *Manager) DeleteEdge(name string) error {
+func (m *Manager) DeleteEdge(name string) vizierErr {
 	if _, ok := m.edges[name]; ok {
 		delete(m.edges, name)
 		return nil
 	}
-	return fmt.Errorf("edge does not exist: %s", name)
+	return NewVizierError(ErrCodeManager, ErrMsgEdgeDoesNotExist, name)
 }
 
-func (m *Manager) GetEdge(name string) (chan interface{}, error) {
+func (m *Manager) GetEdge(name string) (chan interface{}, vizierErr) {
 	if e, ok := m.edges[name]; ok {
 		return e, nil
 	}
-	return nil, fmt.Errorf("edge does not exist: %s", name)
+	return nil, NewVizierError(ErrCodeManager, ErrMsgEdgeDoesNotExist, name)
 }
 
-func NewManager(poolSize int) (*Manager, error) {
+func NewManager(name string, poolSize int) (*Manager, error) {
 	states := make(map[string]IState)
-	pool, err := NewPool(poolSize, states)
+	pool, err := NewPool(name, poolSize, states)
 	if err != nil {
 		return nil, err
 	}
 	return &Manager{
+		name:   name,
 		states: states,
 		edges:  make(map[string](chan interface{})),
 		Pool:   pool,

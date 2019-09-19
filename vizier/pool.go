@@ -18,6 +18,7 @@ type Pool struct {
 	_          struct{}
 	wg         sync.WaitGroup
 	states     map[string]IState
+	name       string
 	size       int
 	run        bool
 	stopWorker chan bool
@@ -54,29 +55,30 @@ func (p *Pool) spawnWorker() {
 	}()
 }
 
-func (p *Pool) Stop() error {
+func (p *Pool) Stop() vizierErr {
 	if !p.run {
-		return ErrPoolNotRunning
+		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
 	}
 	p.run = false
 	return nil
 }
 
-func (p *Pool) Wait() error {
+func (p *Pool) Wait() vizierErr {
 	if !p.run {
-		return ErrPoolNotRunning
+		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
 	}
 	p.wg.Wait()
 	return nil
 }
 
-func (p *Pool) SetSize(size int) error {
+func (p *Pool) SetSize(size int) vizierErr {
 	if !p.run {
-		return ErrPoolNotRunning
+		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
 	}
 
 	if size <= 0 {
-		return ErrInvalidPoolSize
+		detail := fmt.Sprintf("%s. invalid size %d", p.name, size)
+		return NewVizierError(ErrCodePool, ErrMsgPoolSizeInvalid, detail)
 	}
 
 	delta := int(math.Abs(float64(p.size - size)))
@@ -92,17 +94,18 @@ func (p *Pool) SetSize(size int) error {
 	return nil
 }
 
-func NewPool(size int, states map[string]IState) (*Pool, error) {
+func NewPool(name string, size int, states map[string]IState) (*Pool, vizierErr) {
 	if size <= 0 {
-		return nil, ErrInvalidPoolSize
+		return nil, NewVizierError(ErrCodePool, ErrMsgPoolSizeInvalid, name)
 	}
 
 	if len(states) <= 0 {
-		return nil, ErrStatesEmpty
+		return nil, NewVizierError(ErrCodePool, ErrMsgPoolEmptyStates, name)
 	}
 
 	pool := Pool{
 		states:     states,
+		name:       name,
 		size:       size,
 		run:        true,
 		stopWorker: make(chan bool),
