@@ -6,11 +6,11 @@ type vizierCode string
 type vizierMessage string
 
 const (
-	ErrCodeManager vizierCode = "manager"
-	ErrCodeState   vizierCode = "state"
-	ErrCodeEdge    vizierCode = "edge"
-	ErrCodePool    vizierCode = "pool"
-	ErrCodeWorker  vizierCode = "worker"
+	ErrCodeManager           vizierCode    = "manager"
+	ErrCodeState             vizierCode    = "state"
+	ErrCodeEdge              vizierCode    = "edge"
+	ErrCodePool              vizierCode    = "pool"
+	ErrCodeWorker            vizierCode    = "worker"
 	ErrMsgStateAlreadyExists vizierMessage = "state already exists"
 	ErrMsgStateDoesNotExist  vizierMessage = "state does not exist"
 	ErrMsgEdgeAlreadyExists  vizierMessage = "edge already exists"

@@ -1,9 +1,5 @@
 package vizier
 
-// TODO: Create Logger
-// TODO: Worker Pool Observer To Record Statistics
-// TODO: Detect/Fail On Edge Cycles
-
 type Manager struct {
 	_      struct{}
 	name   string
