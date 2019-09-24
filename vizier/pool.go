@@ -36,7 +36,11 @@ func (p *Pool) spawnWorker() {
 		defer p.wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				fmt.Println(err)
+				log.WithFields(log.Fields{
+					"source": "pool",
+					"name":   p.name,
+					"err":    err,
+				}).Warn("worker panic")
 				p.spawnWorker()
 			}
 		}()

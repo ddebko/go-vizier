@@ -45,7 +45,7 @@ func (s *State) Send(name string, payload interface{}) vizierErr {
 	return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 }
 
-func (s *State) AttachEdge(name string, from chan interface{}, to chan interface{}) vizierErr {
+func (s *State) AttachEdge(name string, recv chan interface{}, send chan interface{}) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
@@ -56,8 +56,8 @@ func (s *State) AttachEdge(name string, from chan interface{}, to chan interface
 		"edge":   name,
 	}).Info("attached edge")
 	s.edges[name] = Edge{
-		recv: from,
-		send: to,
+		recv: recv,
+		send: send,
 	}
 	return nil
 }
