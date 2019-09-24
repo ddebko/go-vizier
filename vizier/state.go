@@ -1,6 +1,10 @@
 package vizier
 
-import "fmt"
+import (
+	"fmt"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type IState interface {
 	Run()
@@ -15,8 +19,13 @@ type State struct {
 }
 
 func (s *State) Run() {
-	for _, edge := range s.edges {
+	for name, edge := range s.edges {
 		if payload, ok := <-edge.recv; ok {
+			log.WithFields(log.Fields{
+				"source": "state",
+				"state":  s.Name,
+				"edge":   name,
+			}).Info("payload recieved")
 			edge.send <- s.Process(payload)
 		}
 	}
@@ -24,18 +33,28 @@ func (s *State) Run() {
 
 func (s *State) Send(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
+		log.WithFields(log.Fields{
+			"source": "state",
+			"state":  s.Name,
+			"edge":   name,
+		}).Info("invoked state")
 		edge.recv <- payload
 		return nil
 	}
 	detail := fmt.Sprintf("failed to send to state: %s on edge: %s", s.Name, name)
-	return NewVizierError(ErrCodeState, ErrMsgEdgeDoesNotExist, detail)
+	return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 }
 
 func (s *State) AttachEdge(name string, from chan interface{}, to chan interface{}) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
-		return NewVizierError(ErrCodeState, ErrMsgEdgeAlreadyExists, detail)
+		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
 	}
+	log.WithFields(log.Fields{
+		"source": "state",
+		"state":  s.Name,
+		"edge":   name,
+	}).Info("attached edge")
 	s.edges[name] = Edge{
 		recv: from,
 		send: to,
@@ -46,8 +65,13 @@ func (s *State) AttachEdge(name string, from chan interface{}, to chan interface
 func (s *State) DetachEdge(name string) vizierErr {
 	if _, ok := s.edges[name]; !ok {
 		detail := fmt.Sprintf("failed to detach edge %s from state %s", name, s.Name)
-		return NewVizierError(ErrCodeState, ErrMsgEdgeDoesNotExist, detail)
+		return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 	}
+	log.WithFields(log.Fields{
+		"source": "state",
+		"state":  s.Name,
+		"edge":   name,
+	}).Info("detached edge")
 	delete(s.edges, name)
 	return nil
 }

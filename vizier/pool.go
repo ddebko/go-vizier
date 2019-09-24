@@ -1,17 +1,11 @@
 package vizier
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sync"
-)
 
-var (
-	ErrStatesEmpty       = errors.New("there must be at least one state")
-	ErrPoolNotRunning    = errors.New("the pool is not running")
-	ErrInvalidPoolSize   = errors.New("the pool size must be greater than 0")
-	ErrInvalidRetryValue = errors.New("the pool retries value cannot be negative")
+	log "github.com/sirupsen/logrus"
 )
 
 type Pool struct {
@@ -33,6 +27,10 @@ func (p *Pool) Create() error {
 }
 
 func (p *Pool) spawnWorker() {
+	log.WithFields(log.Fields{
+		"source": "pool",
+		"name":   p.name,
+	}).Info("worker spawned")
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -57,15 +55,19 @@ func (p *Pool) spawnWorker() {
 
 func (p *Pool) Stop() vizierErr {
 	if !p.run {
-		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
+		return NewVizierError(ErrSourcePool, ErrMsgPoolNotRunning, p.name)
 	}
+	log.WithFields(log.Fields{
+		"source": "pool",
+		"name":   p.name,
+	}).Info("stop pool")
 	p.run = false
 	return nil
 }
 
 func (p *Pool) Wait() vizierErr {
 	if !p.run {
-		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
+		return NewVizierError(ErrSourcePool, ErrMsgPoolNotRunning, p.name)
 	}
 	p.wg.Wait()
 	return nil
@@ -73,13 +75,20 @@ func (p *Pool) Wait() vizierErr {
 
 func (p *Pool) SetSize(size int) vizierErr {
 	if !p.run {
-		return NewVizierError(ErrCodePool, ErrMsgPoolNotRunning, p.name)
+		return NewVizierError(ErrSourcePool, ErrMsgPoolNotRunning, p.name)
 	}
 
 	if size <= 0 {
 		detail := fmt.Sprintf("%s. invalid size %d", p.name, size)
-		return NewVizierError(ErrCodePool, ErrMsgPoolSizeInvalid, detail)
+		return NewVizierError(ErrSourcePool, ErrMsgPoolSizeInvalid, detail)
 	}
+
+	log.WithFields(log.Fields{
+		"source":  "pool",
+		"name":    p.name,
+		"oldsize": p.size,
+		"newsize": size,
+	}).Info("set pool size")
 
 	delta := int(math.Abs(float64(p.size - size)))
 	spawn := (size > p.size)
@@ -90,18 +99,25 @@ func (p *Pool) SetSize(size int) vizierErr {
 		}
 		p.stopWorker <- true
 	}
+	p.size = size
 
 	return nil
 }
 
 func NewPool(name string, size int, states map[string]IState) (*Pool, vizierErr) {
 	if size <= 0 {
-		return nil, NewVizierError(ErrCodePool, ErrMsgPoolSizeInvalid, name)
+		return nil, NewVizierError(ErrSourcePool, ErrMsgPoolSizeInvalid, name)
 	}
 
 	if len(states) <= 0 {
-		return nil, NewVizierError(ErrCodePool, ErrMsgPoolEmptyStates, name)
+		return nil, NewVizierError(ErrSourcePool, ErrMsgPoolEmptyStates, name)
 	}
+
+	log.WithFields(log.Fields{
+		"source": "pool",
+		"name":   name,
+		"size":   size,
+	}).Info("created pool")
 
 	pool := Pool{
 		states:     states,
