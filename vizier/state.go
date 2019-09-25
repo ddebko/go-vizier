@@ -21,6 +21,16 @@ type State struct {
 func (s *State) Run() {
 	for name, edge := range s.edges {
 		if payload, ok := <-edge.recv; ok {
+			defer func() {
+				if err := recover(); err != nil {
+					log.WithFields(log.Fields{
+						"source":  "state",
+						"state":   s.Name,
+						"edge":    name,
+						"payload": payload,
+					}).Warn("process failed")
+				}
+			}()
 			log.WithFields(log.Fields{
 				"source": "state",
 				"state":  s.Name,
