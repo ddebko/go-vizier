@@ -33,7 +33,7 @@ func CreateTables(db *dynamodb.Client) error {
 	}
 
 	req := db.CreateTableRequest(&dynamodb.CreateTableInput{
-		TableName: aws.String("Test"),
+		TableName: aws.String(""),
 	})
 	_, err := req.Send(context.Background())
 	if err != nil {

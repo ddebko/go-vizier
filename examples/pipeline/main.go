@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/SuperBadCode/Vizier/vizier"
 )
@@ -90,6 +91,7 @@ func main() {
 	}
 
 	n := 1000
+	start := time.Now()
 	for i := 0; i < n; i++ {
 		stateAdd.Send("from_add_to_subtract", rand.Intn(100)+1)
 	}
@@ -100,4 +102,5 @@ func main() {
 			fmt.Printf("OUTPUT %+v\n", value)
 		}
 	}
+	fmt.Printf("completed %+v", time.Since(start))
 }

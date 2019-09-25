@@ -24,7 +24,8 @@ type State struct {
 
 func (s State) Run() {
 	for name, edge := range s.edges {
-		if stream, ok := <-edge.recv; ok {
+		select {
+		case stream := <-edge.recv:
 			defer func() {
 				if err := recover(); err != nil {
 					log.WithFields(log.Fields{
@@ -34,6 +35,7 @@ func (s State) Run() {
 						"trace":   stream.TraceID,
 						"time":    time.Now().UTC().String(),
 						"payload": stream.Payload,
+						"err":     err,
 					}).Warn("process failed")
 				}
 			}()
@@ -44,8 +46,12 @@ func (s State) Run() {
 				"trace":  stream.TraceID,
 				"time":   time.Now().UTC().String(),
 			}).Info("payload recieved")
-			stream.Payload = s.Process(stream.Payload)
-			edge.send <- stream
+			edge.send <- Stream{
+				TraceID: stream.TraceID,
+				Payload: s.Process(stream.Payload),
+			}
+		default:
+			continue
 		}
 	}
 }

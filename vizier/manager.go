@@ -55,7 +55,7 @@ func (m *Manager) CreateEdge(name string) (chan Stream, vizierErr) {
 		"source": "manager",
 		"name":   name,
 	}).Info("created edge")
-	edge := make(chan Stream)
+	edge := make(chan Stream, 1000)
 	m.edges[name] = edge
 	return edge, nil
 }
