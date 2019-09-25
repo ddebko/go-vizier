@@ -10,7 +10,9 @@ import (
 
 type IState interface {
 	Run()
-	Send(string, interface{})
+	Send(string, interface{}) vizierErr
+	AttachEdge(string, chan Stream, chan Stream) vizierErr
+	DetachEdge(string) vizierErr
 }
 
 type State struct {
@@ -20,7 +22,7 @@ type State struct {
 	edges   map[string]Edge
 }
 
-func (s *State) Run() {
+func (s State) Run() {
 	for name, edge := range s.edges {
 		if stream, ok := <-edge.recv; ok {
 			defer func() {
@@ -48,7 +50,7 @@ func (s *State) Run() {
 	}
 }
 
-func (s *State) Send(name string, payload interface{}) vizierErr {
+func (s State) Send(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
 		traceID := uuid.New().String()
 		log.WithFields(log.Fields{
@@ -68,7 +70,7 @@ func (s *State) Send(name string, payload interface{}) vizierErr {
 	return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 }
 
-func (s *State) AttachEdge(name string, recv chan Stream, send chan Stream) vizierErr {
+func (s State) AttachEdge(name string, recv chan Stream, send chan Stream) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
@@ -85,7 +87,7 @@ func (s *State) AttachEdge(name string, recv chan Stream, send chan Stream) vizi
 	return nil
 }
 
-func (s *State) DetachEdge(name string) vizierErr {
+func (s State) DetachEdge(name string) vizierErr {
 	if _, ok := s.edges[name]; !ok {
 		detail := fmt.Sprintf("failed to detach edge %s from state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)

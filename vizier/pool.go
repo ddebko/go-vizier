@@ -19,6 +19,10 @@ type Pool struct {
 }
 
 func (p *Pool) Create() error {
+	if len(p.states) <= 0 {
+		return NewVizierError(ErrSourcePool, ErrMsgPoolEmptyStates, p.name)
+	}
+
 	for i := 0; i < p.size; i++ {
 		p.spawnWorker()
 	}
@@ -111,10 +115,6 @@ func (p *Pool) SetSize(size int) vizierErr {
 func NewPool(name string, size int, states map[string]IState) (*Pool, vizierErr) {
 	if size <= 0 {
 		return nil, NewVizierError(ErrSourcePool, ErrMsgPoolSizeInvalid, name)
-	}
-
-	if len(states) <= 0 {
-		return nil, NewVizierError(ErrSourcePool, ErrMsgPoolEmptyStates, name)
 	}
 
 	log.WithFields(log.Fields{

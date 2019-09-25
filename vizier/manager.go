@@ -47,16 +47,17 @@ func (m *Manager) GetState(name string) (IState, vizierErr) {
 	return nil, NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, name)
 }
 
-func (m *Manager) CreateEdge(name string) vizierErr {
+func (m *Manager) CreateEdge(name string) (chan Stream, vizierErr) {
 	if _, ok := m.edges[name]; ok {
-		return NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, name)
+		return nil, NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, name)
 	}
 	log.WithFields(log.Fields{
 		"source": "manager",
 		"name":   name,
 	}).Info("created edge")
-	m.edges[name] = make(chan Stream)
-	return nil
+	edge := make(chan Stream)
+	m.edges[name] = edge
+	return edge, nil
 }
 
 func (m *Manager) DeleteEdge(name string) vizierErr {
