@@ -3,7 +3,8 @@ Vizier is a tool for concurrency abstraction using a state design architecture f
 
 ### TODO
 
-- Look into using Dynamic Select Statement reflect.SelectCase
+- Look into using Dynamic Select Statement reflect.SelectCase vs GoSelect
+- Look into Nesting Payload Into Struct For Tracing
 - Observer For The Worker Pool To Record Statistics On States/Edges
 - Detect & Fail On Edge Cycle Within Manager
 - Examples

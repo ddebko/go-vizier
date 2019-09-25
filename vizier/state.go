@@ -2,7 +2,9 @@ package vizier
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -20,14 +22,16 @@ type State struct {
 
 func (s *State) Run() {
 	for name, edge := range s.edges {
-		if payload, ok := <-edge.recv; ok {
+		if stream, ok := <-edge.recv; ok {
 			defer func() {
 				if err := recover(); err != nil {
 					log.WithFields(log.Fields{
 						"source":  "state",
 						"state":   s.Name,
 						"edge":    name,
-						"payload": payload,
+						"trace":   stream.TraceID,
+						"time":    time.Now().UTC().String(),
+						"payload": stream.Payload,
 					}).Warn("process failed")
 				}
 			}()
@@ -35,27 +39,36 @@ func (s *State) Run() {
 				"source": "state",
 				"state":  s.Name,
 				"edge":   name,
+				"trace":  stream.TraceID,
+				"time":   time.Now().UTC().String(),
 			}).Info("payload recieved")
-			edge.send <- s.Process(payload)
+			stream.Payload = s.Process(stream.Payload)
+			edge.send <- stream
 		}
 	}
 }
 
 func (s *State) Send(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
+		traceID := uuid.New().String()
 		log.WithFields(log.Fields{
 			"source": "state",
 			"state":  s.Name,
 			"edge":   name,
+			"trace":  traceID,
+			"time":   time.Now().UTC().String(),
 		}).Info("invoked state")
-		edge.recv <- payload
+		edge.recv <- Stream{
+			TraceID: traceID,
+			Payload: payload,
+		}
 		return nil
 	}
 	detail := fmt.Sprintf("failed to send to state: %s on edge: %s", s.Name, name)
 	return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 }
 
-func (s *State) AttachEdge(name string, recv chan interface{}, send chan interface{}) vizierErr {
+func (s *State) AttachEdge(name string, recv chan Stream, send chan Stream) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)

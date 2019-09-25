@@ -8,7 +8,7 @@ type Manager struct {
 	_      struct{}
 	name   string
 	states map[string]IState
-	edges  map[string](chan interface{})
+	edges  map[string](chan Stream)
 	Pool   *Pool
 }
 
@@ -55,7 +55,7 @@ func (m *Manager) CreateEdge(name string) vizierErr {
 		"source": "manager",
 		"name":   name,
 	}).Info("created edge")
-	m.edges[name] = make(chan interface{})
+	m.edges[name] = make(chan Stream)
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (m *Manager) DeleteEdge(name string) vizierErr {
 	return NewVizierError(ErrSourceManager, ErrMsgEdgeDoesNotExist, name)
 }
 
-func (m *Manager) GetEdge(name string) (chan interface{}, vizierErr) {
+func (m *Manager) GetEdge(name string) (chan Stream, vizierErr) {
 	if e, ok := m.edges[name]; ok {
 		log.WithFields(log.Fields{
 			"source": "manager",
@@ -95,7 +95,7 @@ func NewManager(name string, poolSize int) (*Manager, error) {
 	return &Manager{
 		name:   name,
 		states: states,
-		edges:  make(map[string](chan interface{})),
+		edges:  make(map[string](chan Stream)),
 		Pool:   pool,
 	}, nil
 }
