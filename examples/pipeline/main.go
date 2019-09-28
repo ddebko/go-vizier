@@ -18,7 +18,7 @@ import (
 */
 
 func main() {
-	manager, err := vizier.NewManager("pipeline", 80)
+	manager, err := vizier.NewManager("pipeline", 160)
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +93,7 @@ func main() {
 	n := 1000
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		stateAdd.Send("from_add_to_subtract", rand.Intn(100)+1)
+		stateAdd.Invoke("from_add_to_subtract", rand.Intn(100)+1)
 	}
 
 	for i := 0; i < n; i++ {

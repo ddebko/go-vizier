@@ -4,13 +4,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang-collections/go-datastructures/queue"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	BUFFER_SIZE_WARNING int64 = 1000
+	WARNING_INCREMENTS  int64 = 100
+)
+
 type IState interface {
-	Run()
-	Send(string, interface{}) vizierErr
+	Poll()
+	Invoke(string, interface{}) vizierErr
 	AttachEdge(string, chan Stream, chan Stream) vizierErr
 	DetachEdge(string) vizierErr
 }
@@ -20,55 +26,57 @@ type State struct {
 	Name    string
 	Process func(interface{}) interface{}
 	edges   map[string]Edge
+	buffers map[string]*queue.Queue
 }
 
-func (s State) Run() {
+func (s State) Poll() {
 	for name, edge := range s.edges {
 		select {
 		case stream := <-edge.recv:
+			fields := log.Fields{
+				"edge":  name,
+				"trace": stream.TraceID,
+			}
 			defer func() {
 				if err := recover(); err != nil {
-					log.WithFields(log.Fields{
-						"source":  "state",
-						"state":   s.Name,
-						"edge":    name,
-						"trace":   stream.TraceID,
-						"time":    time.Now().UTC().String(),
-						"payload": stream.Payload,
-						"err":     err,
-					}).Warn("process failed")
+					fields["payload"] = stream.Payload
+					fields["err"] = err
+					s.log(fields).Warn("process failed")
 				}
 			}()
-			log.WithFields(log.Fields{
-				"source": "state",
-				"state":  s.Name,
-				"edge":   name,
-				"trace":  stream.TraceID,
-				"time":   time.Now().UTC().String(),
-			}).Info("payload recieved")
-			edge.send <- Stream{
-				TraceID: stream.TraceID,
-				Payload: s.Process(stream.Payload),
-			}
+			s.log(fields).Info("payload recieved")
+			s.send(name, Stream{
+				TraceID:   stream.TraceID,
+				Payload:   s.Process(stream.Payload),
+				Processed: true,
+			})
 		default:
-			continue
+			s.consumeBuffer(name)
 		}
 	}
 }
 
-func (s State) Send(name string, payload interface{}) vizierErr {
+func (s State) Invoke(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
-		traceID := uuid.New().String()
-		log.WithFields(log.Fields{
-			"source": "state",
-			"state":  s.Name,
-			"edge":   name,
-			"trace":  traceID,
-			"time":   time.Now().UTC().String(),
-		}).Info("invoked state")
-		edge.recv <- Stream{
-			TraceID: traceID,
+		stream := Stream{
+			TraceID: uuid.New().String(),
 			Payload: payload,
+		}
+		s.log(log.Fields{
+			"edge":  name,
+			"trace": stream.TraceID,
+		}).Info("invoked state")
+		select {
+		case edge.recv <- stream:
+		default:
+			s.buffers[name].Put(stream)
+			bufferSize := s.buffers[name].Len()
+			if bufferSize > BUFFER_SIZE_WARNING && bufferSize%WARNING_INCREMENTS == 0 {
+				s.log(log.Fields{
+					"edge": name,
+					"size": bufferSize,
+				}).Warn("buffer size")
+			}
 		}
 		return nil
 	}
@@ -81,15 +89,12 @@ func (s State) AttachEdge(name string, recv chan Stream, send chan Stream) vizie
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
 	}
-	log.WithFields(log.Fields{
-		"source": "state",
-		"state":  s.Name,
-		"edge":   name,
-	}).Info("attached edge")
+	s.log(log.Fields{"edge": name}).Info("attached edge")
 	s.edges[name] = Edge{
 		recv: recv,
 		send: send,
 	}
+	s.buffers[name] = queue.New(1)
 	return nil
 }
 
@@ -98,13 +103,49 @@ func (s State) DetachEdge(name string) vizierErr {
 		detail := fmt.Sprintf("failed to detach edge %s from state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 	}
-	log.WithFields(log.Fields{
-		"source": "state",
-		"state":  s.Name,
-		"edge":   name,
-	}).Info("detached edge")
+	s.log(log.Fields{"edge": name}).Info("detached edge")
 	delete(s.edges, name)
+	delete(s.buffers, name)
 	return nil
+}
+
+func (s State) consumeBuffer(name string) error {
+	if s.buffers[name].Len() > 0 {
+		items, err := s.buffers[name].Get(0)
+		if err != nil {
+			return err
+		}
+
+		if len(items) != 0 {
+			if stream, ok := items[0].(Stream); ok {
+				if stream.Processed {
+					s.send(name, stream)
+				}
+
+				s.send(name, Stream{
+					TraceID:   stream.TraceID,
+					Payload:   s.Process(stream.Payload),
+					Processed: true,
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func (s State) send(name string, stream Stream) {
+	select {
+	case s.edges[name].send <- stream:
+	default:
+		s.buffers[name].Put(stream)
+	}
+}
+
+func (s State) log(fields log.Fields) *log.Entry {
+	fields["source"] = "state"
+	fields["state"] = s.Name
+	fields["time"] = time.Now().UTC().String()
+	return log.WithFields(fields)
 }
 
 func NewState(name string, process func(interface{}) interface{}) State {
@@ -112,5 +153,6 @@ func NewState(name string, process func(interface{}) interface{}) State {
 		Name:    name,
 		Process: process,
 		edges:   make(map[string]Edge),
+		buffers: make(map[string]*queue.Queue),
 	}
 }

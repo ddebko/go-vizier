@@ -54,7 +54,7 @@ func (p *Pool) spawnWorker() {
 				return
 			default:
 				for _, state := range p.states {
-					state.Run()
+					state.Poll()
 				}
 			}
 		}
