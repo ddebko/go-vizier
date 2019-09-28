@@ -15,6 +15,7 @@ const (
 	ErrSourceEdge            source  = "edge"
 	ErrSourcePool            source  = "pool"
 	ErrSourceWorker          source  = "worker"
+	ErrMsgManagerCycle       message = "cycle detected in graph"
 	ErrMsgStateAlreadyExists message = "state already exists"
 	ErrMsgStateDoesNotExist  message = "state does not exist"
 	ErrMsgStateInvalidEdge   message = "edge cannot be nil"

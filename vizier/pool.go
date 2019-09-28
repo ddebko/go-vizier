@@ -31,20 +31,13 @@ func (p *Pool) Create() error {
 }
 
 func (p *Pool) spawnWorker() {
-	log.WithFields(log.Fields{
-		"source": "pool",
-		"name":   p.name,
-	}).Info("worker spawned")
+	p.log(log.Fields{}).Info("worker spawned")
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				log.WithFields(log.Fields{
-					"source": "pool",
-					"name":   p.name,
-					"err":    err,
-				}).Warn("worker panic")
+				p.log(log.Fields{"err": err}).Info("worker panic")
 				p.spawnWorker()
 			}
 		}()
@@ -65,10 +58,7 @@ func (p *Pool) Stop() vizierErr {
 	if !p.run {
 		return NewVizierError(ErrSourcePool, ErrMsgPoolNotRunning, p.name)
 	}
-	log.WithFields(log.Fields{
-		"source": "pool",
-		"name":   p.name,
-	}).Info("stop pool")
+	p.log(log.Fields{}).Info("stop pool")
 	p.run = false
 	return nil
 }
@@ -91,12 +81,7 @@ func (p *Pool) SetSize(size int) vizierErr {
 		return NewVizierError(ErrSourcePool, ErrMsgPoolSizeInvalid, detail)
 	}
 
-	log.WithFields(log.Fields{
-		"source":  "pool",
-		"name":    p.name,
-		"oldsize": p.size,
-		"newsize": size,
-	}).Info("set pool size")
+	p.log(log.Fields{"new_size": size}).Info("set pool size")
 
 	delta := int(math.Abs(float64(p.size - size)))
 	spawn := (size > p.size)
@@ -112,16 +97,17 @@ func (p *Pool) SetSize(size int) vizierErr {
 	return nil
 }
 
+func (p *Pool) log(fields log.Fields) *log.Entry {
+	fields["source"] = "pool"
+	fields["name"] = p.name
+	fields["size"] = p.size
+	return log.WithFields(fields)
+}
+
 func NewPool(name string, size int, states map[string]IState) (*Pool, vizierErr) {
 	if size <= 0 {
 		return nil, NewVizierError(ErrSourcePool, ErrMsgPoolSizeInvalid, name)
 	}
-
-	log.WithFields(log.Fields{
-		"source": "pool",
-		"name":   name,
-		"size":   size,
-	}).Info("created pool")
 
 	pool := Pool{
 		states:     states,
@@ -130,6 +116,8 @@ func NewPool(name string, size int, states map[string]IState) (*Pool, vizierErr)
 		run:        true,
 		stopWorker: make(chan bool),
 	}
+
+	pool.log(log.Fields{}).Info("created pool")
 
 	return &pool, nil
 }
