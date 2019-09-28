@@ -4,6 +4,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	CHANNEL_SIZE = 1000
+)
+
 type Manager struct {
 	_      struct{}
 	name   string
@@ -55,7 +59,7 @@ func (m *Manager) CreateEdge(name string) (chan Stream, vizierErr) {
 		"source": "manager",
 		"name":   name,
 	}).Info("created edge")
-	edge := make(chan Stream, 1000)
+	edge := make(chan Stream, CHANNEL_SIZE)
 	m.edges[name] = edge
 	return edge, nil
 }
@@ -84,6 +88,7 @@ func (m *Manager) GetEdge(name string) (chan Stream, vizierErr) {
 }
 
 func NewManager(name string, poolSize int) (*Manager, error) {
+	log.SetLevel(log.WarnLevel)
 	states := make(map[string]IState)
 	pool, err := NewPool(name, poolSize, states)
 	if err != nil {

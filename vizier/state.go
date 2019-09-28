@@ -111,7 +111,7 @@ func (s State) DetachEdge(name string) vizierErr {
 
 func (s State) consumeBuffer(name string) error {
 	if s.buffers[name].Len() > 0 {
-		items, err := s.buffers[name].Get(0)
+		items, err := s.buffers[name].Get(1)
 		if err != nil {
 			return err
 		}
