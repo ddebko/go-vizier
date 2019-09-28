@@ -2,6 +2,7 @@ package vizier
 
 import (
 	"fmt"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -9,13 +10,14 @@ type source string
 type message string
 
 const (
-	ErrSourceManager           source  = "manager"
-	ErrSourceState             source  = "state"
-	ErrSourceEdge              source  = "edge"
-	ErrSourcePool              source  = "pool"
-	ErrSourceWorker            source  = "worker"
+	ErrSourceManager         source  = "manager"
+	ErrSourceState           source  = "state"
+	ErrSourceEdge            source  = "edge"
+	ErrSourcePool            source  = "pool"
+	ErrSourceWorker          source  = "worker"
 	ErrMsgStateAlreadyExists message = "state already exists"
 	ErrMsgStateDoesNotExist  message = "state does not exist"
+	ErrMsgStateInvalidEdge   message = "edge cannot be nil"
 	ErrMsgEdgeAlreadyExists  message = "edge already exists"
 	ErrMsgEdgeDoesNotExist   message = "edge does not exist"
 	ErrMsgPoolNotRunning     message = "pool is not running"
@@ -59,7 +61,7 @@ func (v *VizierError) Err() error {
 
 func NewVizierError(src source, msg message, details string) *VizierError {
 	log.WithFields(log.Fields{
-		"source": src,
+		"source":  src,
 		"details": details,
 	}).Warn(msg)
 	return &VizierError{

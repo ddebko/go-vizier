@@ -1,9 +1,9 @@
 package vizier
 
-type IEdge interface {}
+type IEdge interface{}
 
 type Edge struct {
 	_    struct{}
-	recv chan Stream
-	send chan Stream
+	recv chan Packet
+	send chan Packet
 }

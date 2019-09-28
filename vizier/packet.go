@@ -1,6 +1,6 @@
 package vizier
 
-type Stream struct {
+type Packet struct {
 	_         struct{}
 	TraceID   string
 	Processed bool

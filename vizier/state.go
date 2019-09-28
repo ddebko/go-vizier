@@ -17,7 +17,7 @@ var (
 type IState interface {
 	Poll()
 	Invoke(string, interface{}) vizierErr
-	AttachEdge(string, chan Stream, chan Stream) vizierErr
+	AttachEdge(string, chan Packet, chan Packet) vizierErr
 	DetachEdge(string) vizierErr
 }
 
@@ -31,12 +31,12 @@ type State struct {
 
 func (s State) Poll() {
 	for name, edge := range s.edges {
+		fields := log.Fields{
+			"edge": name,
+		}
 		select {
 		case stream := <-edge.recv:
-			fields := log.Fields{
-				"edge":  name,
-				"trace": stream.TraceID,
-			}
+			fields["trace"] = stream.TraceID
 			defer func() {
 				if err := recover(); err != nil {
 					fields["payload"] = stream.Payload
@@ -45,20 +45,24 @@ func (s State) Poll() {
 				}
 			}()
 			s.log(fields).Info("payload recieved")
-			s.send(name, Stream{
+			s.send(name, Packet{
 				TraceID:   stream.TraceID,
 				Payload:   s.Process(stream.Payload),
 				Processed: true,
 			})
 		default:
-			s.consumeBuffer(name)
+			err := s.consumeBuffer(name)
+			if err != nil {
+				fields["err"] = err
+				s.log(fields).Warn("consuming buffer")
+			}
 		}
 	}
 }
 
 func (s State) Invoke(name string, payload interface{}) vizierErr {
 	if edge, ok := s.edges[name]; ok {
-		stream := Stream{
+		stream := Packet{
 			TraceID: uuid.New().String(),
 			Payload: payload,
 		}
@@ -84,11 +88,20 @@ func (s State) Invoke(name string, payload interface{}) vizierErr {
 	return NewVizierError(ErrSourceState, ErrMsgEdgeDoesNotExist, detail)
 }
 
-func (s State) AttachEdge(name string, recv chan Stream, send chan Stream) vizierErr {
+func (s State) AttachEdge(name string, recv chan Packet, send chan Packet) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
 	}
+
+	if recv == nil {
+		return NewVizierError(ErrSourceState, ErrMsgStateInvalidEdge, "channel recv cannot be nil")
+	}
+
+	if send == nil {
+		return NewVizierError(ErrSourceState, ErrMsgStateInvalidEdge, "channel send cannot be nil")
+	}
+
 	s.log(log.Fields{"edge": name}).Info("attached edge")
 	s.edges[name] = Edge{
 		recv: recv,
@@ -117,12 +130,12 @@ func (s State) consumeBuffer(name string) error {
 		}
 
 		if len(items) != 0 {
-			if stream, ok := items[0].(Stream); ok {
+			if stream, ok := items[0].(Packet); ok {
 				if stream.Processed {
 					s.send(name, stream)
 				}
 
-				s.send(name, Stream{
+				s.send(name, Packet{
 					TraceID:   stream.TraceID,
 					Payload:   s.Process(stream.Payload),
 					Processed: true,
@@ -133,7 +146,7 @@ func (s State) consumeBuffer(name string) error {
 	return nil
 }
 
-func (s State) send(name string, stream Stream) {
+func (s State) send(name string, stream Packet) {
 	select {
 	case s.edges[name].send <- stream:
 	default:
