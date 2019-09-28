@@ -88,7 +88,6 @@ func (m *Manager) GetEdge(name string) (chan Stream, vizierErr) {
 }
 
 func NewManager(name string, poolSize int) (*Manager, error) {
-	log.SetLevel(log.WarnLevel)
 	states := make(map[string]IState)
 	pool, err := NewPool(name, poolSize, states)
 	if err != nil {
