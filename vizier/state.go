@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	BUFFER_SIZE_WARNING int64 = 1000
-	WARNING_INCREMENTS  int64 = 100
+	BUFFER_SIZE_WARNING int64       = 1000
+	WARNING_INCREMENTS  int64       = 100
+	STOP_STATE          interface{} = nil
 )
 
 type IState interface {
@@ -147,6 +148,10 @@ func (s State) consumeBuffer(name string) error {
 }
 
 func (s State) send(name string, stream Packet) {
+	if stream.Payload == STOP_STATE {
+		return
+	}
+
 	select {
 	case s.edges[name].send <- stream:
 	default:

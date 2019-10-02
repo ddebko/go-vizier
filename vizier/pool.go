@@ -71,6 +71,10 @@ func (p *Pool) Wait() vizierErr {
 	return nil
 }
 
+func (p *Pool) GetSize() int {
+	return p.size
+}
+
 func (p *Pool) SetSize(size int) vizierErr {
 	if !p.run {
 		return NewVizierError(ErrSourcePool, ErrMsgPoolNotRunning, p.name)
