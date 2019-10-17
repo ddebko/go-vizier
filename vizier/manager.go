@@ -1,8 +1,10 @@
 package vizier
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/golang-collections/go-datastructures/queue"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -14,64 +16,66 @@ type Manager struct {
 	_      struct{}
 	name   string
 	states map[string]IState
-	edges  map[string](chan Packet)
 	Pool   *Pool
 }
 
-func (m *Manager) CreateState(name string, state IState) vizierErr {
+func (m *Manager) Node(name string, f func(interface{}) interface{}) *Manager {
 	if _, ok := m.states[name]; ok {
-		return NewVizierError(ErrSourceManager, ErrMsgStateAlreadyExists, name)
+		panic(NewVizierError(ErrSourceManager, ErrMsgStateAlreadyExists, name))
 	}
+
 	m.log(log.Fields{"state": name}).Info("created state")
-	m.states[name] = state
-	return nil
-}
 
-func (m *Manager) DeleteState(name string) vizierErr {
-	if _, ok := m.states[name]; ok {
-		m.log(log.Fields{"state": name}).Info("deleted state")
-		delete(m.states, name)
-		return nil
+	m.states[name] = State{
+		Name:    name,
+		Process: f,
+		edges:   make(map[string]Edge),
+		buffers: make(map[string]*queue.Queue),
 	}
-	return NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, name)
+
+	return m
 }
 
-func (m *Manager) GetState(name string) (IState, vizierErr) {
-	if s, ok := m.states[name]; ok {
-		m.log(log.Fields{"state": name}).Info("get state")
-		return s, nil
+func (m *Manager) Edge(from, to, name string) *Manager {
+	edgeName := fmt.Sprintf("%s_to_%s_%s", from, to, name)
+
+	if _, ok := m.states[to]; !ok {
+		details := fmt.Sprintf("failed to create edge. destination state %s", to)
+		panic(NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, details))
 	}
-	return nil, NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, name)
-}
 
-func (m *Manager) CreateEdge(name string) (chan Packet, vizierErr) {
-	if _, ok := m.edges[name]; ok {
-		return nil, NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, name)
+	if _, ok := m.states[from]; !ok {
+		details := fmt.Sprintf("failed to create edge. source state %s", from)
+		panic(NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, details))
 	}
-	m.log(log.Fields{"edge": name}).Info("created edge")
-	edge := make(chan Packet, CHANNEL_SIZE)
-	m.edges[name] = edge
-	return edge, nil
-}
 
-func (m *Manager) DeleteEdge(name string) vizierErr {
-	if _, ok := m.edges[name]; ok {
-		m.log(log.Fields{"edge": name}).Info("delete edge")
-		delete(m.edges, name)
-		return nil
+	if m.states[from].HasEdge(edgeName) {
+		panic(NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, edgeName))
 	}
-	return NewVizierError(ErrSourceManager, ErrMsgEdgeDoesNotExist, name)
-}
 
-func (m *Manager) GetEdge(name string) (chan Packet, vizierErr) {
-	if e, ok := m.edges[name]; ok {
-		m.log(log.Fields{"edge": name}).Info("get edge")
-		return e, nil
+	m.log(log.Fields{"edge": edgeName}).Info("created edge")
+
+	edge := Edge{
+		recv: make(chan Packet, CHANNEL_SIZE),
+		send: make(chan Packet, CHANNEL_SIZE),
 	}
-	return nil, NewVizierError(ErrSourceManager, ErrMsgEdgeDoesNotExist, name)
+
+	m.states[from].AttachEdge(edgeName, edge)
+
+	return m
 }
 
-func (m *Manager) detectCycle() vizierErr {
+func (m *Manager) Invoke(state, edge string, payload interface{}) vizierErr {
+	if state, ok := m.states[state]; !ok {
+		if !state.HasEdge(edge) {
+			details := fmt.Sprintf("failed to invoke state %s. edge %s", state, edge)
+			panic(NewVizierError(ErrSourceManager, ErrMsgEdgeDoesNotExist, details))
+		}
+
+		details := fmt.Sprintf("failed to invoke state. %s", state)
+		panic(NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, details))
+	}
+
 	return nil
 }
 
@@ -84,16 +88,19 @@ func (m *Manager) log(fields log.Fields) *log.Entry {
 
 func NewManager(name string, poolSize int) (*Manager, error) {
 	states := make(map[string]IState)
+
 	pool, err := NewPool(name, poolSize, states)
 	if err != nil {
 		return nil, err
 	}
+
 	manager := Manager{
 		name:   name,
 		states: states,
-		edges:  make(map[string](chan Packet)),
 		Pool:   pool,
 	}
+
 	manager.log(log.Fields{}).Info("created manager")
+
 	return &manager, nil
 }

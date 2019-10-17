@@ -18,7 +18,7 @@ var (
 type IState interface {
 	Poll()
 	Invoke(string, interface{}) vizierErr
-	AttachEdge(string, chan Packet, chan Packet) vizierErr
+	AttachEdge(string, chan Packet) vizierErr
 	DetachEdge(string) vizierErr
 }
 
@@ -26,37 +26,33 @@ type State struct {
 	_       struct{}
 	Name    string
 	Process func(interface{}) interface{}
-	edges   map[string]Edge
+	Pipe    chan Packet
+	edges   map[string](chan Packet)
 	buffers map[string]*queue.Queue
 }
 
 func (s State) Poll() {
-	for name, edge := range s.edges {
-		fields := log.Fields{
-			"edge": name,
-		}
-		select {
-		case stream := <-edge.recv:
-			fields["trace"] = stream.TraceID
-			defer func() {
-				if err := recover(); err != nil {
-					fields["payload"] = stream.Payload
-					fields["err"] = err
-					s.log(fields).Warn("process failed")
-				}
-			}()
-			s.log(fields).Info("payload recieved")
-			s.send(name, Packet{
-				TraceID:   stream.TraceID,
-				Payload:   s.Process(stream.Payload),
-				Processed: true,
-			})
-		default:
-			err := s.consumeBuffer(name)
-			if err != nil {
+	select {
+	case stream := <-s.pipe:
+		fields["trace"] = stream.TraceID
+		defer func() {
+			if err := recover(); err != nil {
+				fields["payload"] = stream.Payload
 				fields["err"] = err
-				s.log(fields).Warn("consuming buffer")
+				s.log(fields).Warn("process failed")
 			}
+		}()
+		s.log(fields).Info("payload recieved")
+		s.send(name, Packet{
+			TraceID:   stream.TraceID,
+			Payload:   s.Process(stream.Payload),
+			Processed: true,
+		})
+	default:
+		err := s.consumeBuffer(name)
+		if err != nil {
+			fields["err"] = err
+			s.log(fields).Warn("consuming buffer")
 		}
 	}
 }
@@ -170,7 +166,8 @@ func NewState(name string, process func(interface{}) interface{}) State {
 	return State{
 		Name:    name,
 		Process: process,
-		edges:   make(map[string]Edge),
+		Pipe:    make(chan Packet, 1000),
+		edges:   make(map[string](chan Packet)),
 		buffers: make(map[string]*queue.Queue),
 	}
 }
