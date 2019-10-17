@@ -21,6 +21,7 @@ const (
 	ErrMsgEdgeAlreadyExists  message = "edge already exists"
 	ErrMsgEdgeDoesNotExist   message = "edge does not exist"
 	ErrMsgPoolNotRunning     message = "pool is not running"
+	ErrMsgPoolIsRunning      message = "pool is already running"
 	ErrMsgPoolSizeInvalid    message = "pool size must be greater than 0"
 	ErrMsgPoolEmptyStates    message = "pool requires at least one state"
 )

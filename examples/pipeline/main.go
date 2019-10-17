@@ -63,10 +63,30 @@ func main() {
 		Node("divide", divide).
 		Edge("multiply", "divide", "step_three")
 
+	output := manager.Output("divide", "output")
+
+	err = manager.Start()
+	if err != nil {
+		panic(err)
+	}
+
 	n := 1000
 	start := time.Now()
 	for i := 0; i < n; i++ {
 		manager.Invoke("add", rand.Intn(100)+1)
 	}
+
+	for i := 0; i < n; {
+		select {
+		case packet := <-output:
+			if value, ok := packet.Payload.(int); ok {
+				fmt.Printf("OUTPUT %+v\n", value)
+				i++
+			}
+		default:
+			continue
+		}
+	}
+
 	fmt.Printf("completed %+v", time.Since(start))
 }

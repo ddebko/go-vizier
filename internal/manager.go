@@ -25,6 +25,26 @@ func (m *Manager) Node(name string, f func(interface{}) map[string]interface{}) 
 	return m
 }
 
+func (m *Manager) Output(from, name string) chan Packet {
+	if _, ok := m.states[from]; !ok {
+		detail := fmt.Sprintf("failed to create output edge %s. source state %s", name, from)
+		panic(NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail))
+	}
+
+	if m.states[from].HasEdge(name) {
+		detail := fmt.Sprintf("failed to create output edge %s. source state %s", name, from)
+		panic(NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, detail))
+	}
+
+	output := make(chan Packet)
+	err := m.states[from].AttachEdge(name, output)
+	if err != nil {
+		panic(err)
+	}
+
+	return output
+}
+
 func (m *Manager) Edge(from, to, name string) *Manager {
 	edgeName := fmt.Sprintf("%s_to_%s_%s", from, to, name)
 
@@ -51,9 +71,10 @@ func (m *Manager) Edge(from, to, name string) *Manager {
 	return m
 }
 
-func (m *Manager) Invoke(name string, payload interface{}) error {
+func (m *Manager) Invoke(name string, payload interface{}) vizierErr {
 	if _, ok := m.states[name]; !ok {
-		return nil
+		detail := fmt.Sprintf("failed to invoke state %s.", name)
+		return NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
 	}
 
 	m.states[name].Invoke(payload)
@@ -61,9 +82,26 @@ func (m *Manager) Invoke(name string, payload interface{}) error {
 	return nil
 }
 
-func (m *Manager) Stop() error {
+func (m *Manager) Start() vizierErr {
+	if len(m.states) < 1 {
+		return NewVizierError(ErrSourceManager, ErrMsgPoolEmptyStates, m.name)
+	}
+
+	if m.run {
+		return NewVizierError(ErrSourceManager, ErrMsgPoolIsRunning, m.name)
+	}
+
+	m.run = true
+	for i := 0; i < m.size; i++ {
+		m.spawnWorker()
+	}
+	
+	return nil
+}
+
+func (m *Manager) Stop() vizierErr {
 	if !m.run {
-		return fmt.Errorf("")
+		return NewVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
 	}
 	m.run = false
 	return nil
@@ -73,14 +111,14 @@ func (m *Manager) GetSize() int {
 	return m.size
 }
 
-func (m *Manager) SetSize(size int) error {
+func (m *Manager) SetSize(size int) vizierErr {
 	if !m.run {
-		return fmt.Errorf("")
+		return NewVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
 	}
 
 	if size <= 0 {
 		detail := fmt.Sprintf("%s. invalid size %d", m.name, size)
-		return fmt.Errorf(detail)
+		return NewVizierError(ErrSourceManager, ErrMsgPoolSizeInvalid, detail)
 	}
 
 	delta := int(math.Abs(float64(m.size - size)))
