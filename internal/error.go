@@ -1,4 +1,4 @@
-package vizier
+package internal
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ const (
 	ErrMsgManagerCycle       message = "cycle detected in graph"
 	ErrMsgStateAlreadyExists message = "state already exists"
 	ErrMsgStateDoesNotExist  message = "state does not exist"
-	ErrMsgStateInvalidEdge   message = "edge cannot be nil"
+	ErrNsgStateInvalidChan   message = "channel cannot be nil"
 	ErrMsgEdgeAlreadyExists  message = "edge already exists"
 	ErrMsgEdgeDoesNotExist   message = "edge does not exist"
 	ErrMsgPoolNotRunning     message = "pool is not running"

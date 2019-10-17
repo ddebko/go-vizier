@@ -1,8 +1,13 @@
 package internal
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/golang-collections/go-datastructures/queue"
 	"github.com/google/uuid"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,7 +27,7 @@ type Packet struct {
 type IState interface {
 	Poll()
 	Invoke(interface{})
-	AttachEdge(string, chan Packet) error
+	AttachEdge(string, chan Packet) vizierErr
 	HasEdge(string) bool
 	GetPipe() chan Packet
 }
@@ -57,13 +62,15 @@ func (s State) Invoke(payload interface{}) {
 	}
 }
 
-func (s State) AttachEdge(name string, pipe chan Packet) error {
+func (s State) AttachEdge(name string, pipe chan Packet) vizierErr {
 	if _, ok := s.edges[name]; ok {
-		return nil
+		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
+		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
 	}
 
 	if pipe == nil {
-		return nil
+		detail := fmt.Sprintf("channel Packet is nil for edge %s in state %s", name, s.Name)
+		return NewVizierError(ErrSourceState, ErrNsgStateInvalidChan, detail)
 	}
 
 	s.edges[name] = pipe
@@ -86,7 +93,10 @@ func (s State) consumeBuffers() {
 		if buffer.Len() > 0 {
 			items, err := buffer.Get(1)
 			if err != nil {
-				// Log Error
+				s.log(log.Fields{
+					"err":         err,
+					"buffer_name": edge,
+				}).Warn("failed to read from buffer")
 				continue
 			}
 
@@ -114,19 +124,40 @@ func (s State) consumePacket(packet Packet) {
 			})
 			continue
 		}
-		// Log
+		s.log(log.Fields{
+			"edge":    edge,
+			"trace":   packet.TraceID,
+			"payload": packet.Payload,
+		}).Warn("edge not attached to state")
 	}
 }
 
 func (s State) sendPacket(name string, packet Packet) {
+	traceDetails := s.log(log.Fields{
+		"edge":    name,
+		"trace":   packet.TraceID,
+		"payload": packet.Payload,
+	})
+
 	if packet.Payload == STOP_STATE {
+		traceDetails.Info("packet returned STOP_STATE")
 		return
 	}
+
 	select {
 	case s.edges[name] <- packet:
+		traceDetails.Info("packet sent to edge")
 	default:
 		s.buffers[name].Put(packet)
+		traceDetails.Info("packet pushed to buffer")
 	}
+}
+
+func (s State) log(fields log.Fields) *log.Entry {
+	fields["source"] = "state"
+	fields["state"] = s.Name
+	fields["time"] = time.Now().UTC().String()
+	return log.WithFields(fields)
 }
 
 func NewState(name string, process func(interface{}) map[string]interface{}) State {
