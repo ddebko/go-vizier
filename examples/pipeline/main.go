@@ -77,14 +77,10 @@ func main() {
 	}
 
 	for i := 0; i < n; {
-		select {
-		case packet := <-output:
-			if value, ok := packet.Payload.(int); ok {
-				fmt.Printf("OUTPUT %+v\n", value)
-				i++
-			}
-		default:
-			continue
+		packet := <-output
+		if value, ok := packet.Payload.(int); ok {
+			fmt.Printf("OUTPUT %+v\n", value)
+			i++
 		}
 	}
 
