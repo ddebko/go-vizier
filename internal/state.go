@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-collections/go-datastructures/queue"
@@ -19,6 +20,7 @@ var (
 
 type Packet struct {
 	_         struct{}
+	wg        *sync.WaitGroup
 	TraceID   string
 	Processed bool
 	Payload   interface{}
@@ -26,10 +28,16 @@ type Packet struct {
 
 type IState interface {
 	Poll()
-	Invoke(interface{})
-	AttachEdge(string, chan Packet) vizierErr
+	Invoke(interface{}, *sync.WaitGroup)
+	AttachEdge(string, chan Packet, bool) vizierErr
 	HasEdge(string) bool
 	GetPipe() chan Packet
+}
+
+type Edge struct {
+	_        struct{}
+	pipe     chan Packet
+	isOutput bool
 }
 
 type State struct {
@@ -37,7 +45,7 @@ type State struct {
 	Name    string
 	Process func(interface{}) map[string]interface{}
 	pipe    chan Packet
-	edges   map[string](chan Packet)
+	edges   map[string]Edge
 	buffers map[string]*queue.Queue
 }
 
@@ -50,11 +58,17 @@ func (s State) Poll() {
 	}
 }
 
-func (s State) Invoke(payload interface{}) {
+func (s State) Invoke(payload interface{}, wg *sync.WaitGroup) {
+	if wg != nil {
+		wg.Add(1)
+	}
+
 	packet := Packet{
+		wg:      wg,
 		TraceID: uuid.New().String(),
 		Payload: payload,
 	}
+
 	select {
 	case s.pipe <- packet:
 	default:
@@ -62,7 +76,7 @@ func (s State) Invoke(payload interface{}) {
 	}
 }
 
-func (s State) AttachEdge(name string, pipe chan Packet) vizierErr {
+func (s State) AttachEdge(name string, pipe chan Packet, isOutput bool) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
 		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
@@ -73,7 +87,10 @@ func (s State) AttachEdge(name string, pipe chan Packet) vizierErr {
 		return NewVizierError(ErrSourceState, ErrNsgStateInvalidChan, detail)
 	}
 
-	s.edges[name] = pipe
+	s.edges[name] = Edge{
+		pipe:     pipe,
+		isOutput: isOutput,
+	}
 	s.buffers[name] = queue.New(1)
 
 	return nil
@@ -118,6 +135,7 @@ func (s State) consumePacket(packet Packet) {
 	for edge, payload := range s.Process(packet.Payload) {
 		if _, ok := s.edges[edge]; ok {
 			s.sendPacket(edge, Packet{
+				wg:        packet.wg,
 				TraceID:   packet.TraceID,
 				Payload:   payload,
 				Processed: true,
@@ -145,7 +163,10 @@ func (s State) sendPacket(name string, packet Packet) {
 	}
 
 	select {
-	case s.edges[name] <- packet:
+	case s.edges[name].pipe <- packet:
+		if s.edges[name].isOutput {
+			packet.wg.Done()
+		}
 		traceDetails.Info("packet sent to edge")
 	default:
 		s.buffers[name].Put(packet)
@@ -167,7 +188,7 @@ func NewState(name string, process func(interface{}) map[string]interface{}) Sta
 		Name:    name,
 		Process: process,
 		pipe:    make(chan Packet, CHANNEL_SIZE),
-		edges:   make(map[string](chan Packet)),
+		edges:   make(map[string]Edge),
 		buffers: buffers,
 	}
 }

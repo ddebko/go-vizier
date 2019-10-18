@@ -71,17 +71,18 @@ func main() {
 	}
 
 	n := 1000
+	batch := make([]interface{}, n)
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		manager.Invoke("add", rand.Intn(100)+1)
+		batch[i] = rand.Intn(100) + 1
 	}
-
-	for i := 0; i < n; {
-		packet := <-output
-		if value, ok := packet.Payload.(int); ok {
-			fmt.Printf("OUTPUT %+v\n", value)
-			i++
-		}
+	wg, err := manager.BatchInvoke("add", batch)
+	if err != nil {
+		panic(err)
+	}
+	results := manager.GetResults(wg, n, output)
+	for i := 0; i < n; i++ {
+		fmt.Printf("DEBUG %+v\n", results[i])
 	}
 
 	fmt.Printf("completed %+v", time.Since(start))

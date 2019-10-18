@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"math"
+	"sync"
 )
 
 type Manager struct {
@@ -37,7 +38,7 @@ func (m *Manager) Output(from, name string) chan Packet {
 	}
 
 	output := make(chan Packet)
-	err := m.states[from].AttachEdge(name, output)
+	err := m.states[from].AttachEdge(name, output, true)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +64,7 @@ func (m *Manager) Edge(from, to, name string) *Manager {
 		panic(NewVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, detail))
 	}
 
-	err := m.states[from].AttachEdge(edgeName, m.states[to].GetPipe())
+	err := m.states[from].AttachEdge(edgeName, m.states[to].GetPipe(), false)
 	if err != nil {
 		panic(err)
 	}
@@ -71,15 +72,32 @@ func (m *Manager) Edge(from, to, name string) *Manager {
 	return m
 }
 
-func (m *Manager) Invoke(name string, payload interface{}) vizierErr {
+func (m *Manager) BatchInvoke(name string, batch []interface{}) (*sync.WaitGroup, vizierErr) {
+	var wg sync.WaitGroup
+
 	if _, ok := m.states[name]; !ok {
 		detail := fmt.Sprintf("failed to invoke state %s.", name)
-		return NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
+		return nil, NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
 	}
 
-	m.states[name].Invoke(payload)
+	for _, payload := range batch {
+		m.states[name].Invoke(payload, &wg)
+	}
 
-	return nil
+	return &wg, nil
+}
+
+func (m *Manager) Invoke(name string, payload interface{}) (*sync.WaitGroup, vizierErr) {
+	var wg sync.WaitGroup
+
+	if _, ok := m.states[name]; !ok {
+		detail := fmt.Sprintf("failed to invoke state %s.", name)
+		return nil, NewVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
+	}
+
+	m.states[name].Invoke(payload, &wg)
+
+	return &wg, nil
 }
 
 func (m *Manager) Start() vizierErr {
@@ -95,7 +113,7 @@ func (m *Manager) Start() vizierErr {
 	for i := 0; i < m.size; i++ {
 		m.spawnWorker()
 	}
-	
+
 	return nil
 }
 
@@ -133,6 +151,22 @@ func (m *Manager) SetSize(size int) vizierErr {
 	m.size = size
 
 	return nil
+}
+
+func (m *Manager) GetResults(wg *sync.WaitGroup, size int, pipe chan Packet) []interface{} {
+	results := make([]interface{}, size)
+	isWaiting := true
+	go func() {
+		index := 0
+		for isWaiting || index < size {
+			packet := <-pipe
+			results[index] = packet.Payload
+			index++
+		}
+	}()
+	wg.Wait()
+	isWaiting = false
+	return results
 }
 
 func (m *Manager) spawnWorker() {
