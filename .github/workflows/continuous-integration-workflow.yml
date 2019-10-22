@@ -17,4 +17,6 @@ jobs:
     - name: Go-Vet
       run: |
         go vet ./pkg/...
-    - name: 
+    - name: Go-Lint
+      run: |
+        golint ./pkg/
