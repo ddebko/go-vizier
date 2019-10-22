@@ -76,14 +76,16 @@ func main() {
 	for i := 0; i < n; i++ {
 		batch[i] = rand.Intn(100) + 1
 	}
+
 	wg, err := manager.BatchInvoke("add", batch)
 	if err != nil {
 		panic(err)
 	}
+
 	results := manager.GetResults(wg, n, output)
 	for i := 0; i < n; i++ {
 		fmt.Printf("DEBUG %+v\n", results[i])
 	}
 
-	fmt.Printf("completed %+v", time.Since(start))
+	fmt.Printf("completed %+v\n", time.Since(start))
 }

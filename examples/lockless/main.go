@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
-	"sync/atomic"
 	"time"
 
-	"github.com/SuperBadCode/Vizier/vizier"
+	vizier "github.com/SuperBadCode/go-vizier/pkg"
 )
 
 /*
@@ -34,21 +33,9 @@ func main() {
 		panic(err)
 	}
 
-	edgeStart, err := manager.CreateEdge("start")
-	if err != nil {
-		panic(err)
-	}
-
-	edgeWrite, err := manager.CreateEdge("write")
-	if err != nil {
-		panic(err)
-	}
-
-	var ops int32
-	stateWrite := vizier.NewState("start", func(payload interface{}) interface{} {
+	manager.Node("write", func(payload interface{}) map[string]interface{} {
+		send_to := map[string]interface{}{}
 		if batch, ok := payload.(BatchWrite); ok {
-			atomic.AddInt32(&ops, 1)
-
 			startIndex := batch.index * batch.size
 			endIndex := startIndex + batch.size
 
@@ -59,39 +46,40 @@ func main() {
 			batch.index += batch.poolSize
 
 			if (batch.index*batch.size)+batch.size >= TEST_SIZE {
-				return vizier.STOP_STATE
+				send_to["batch_complete"] = true
+				return send_to
 			}
-			return batch
+
+			send_to["write_to_write_next_batch"] = batch
+			return send_to
 		}
-		return vizier.STOP_STATE
-	})
-	stateWrite.AttachEdge("from_start_to_write", edgeStart, edgeWrite)
-	stateWrite.AttachEdge("from_write_to_start", edgeWrite, edgeStart)
+		return send_to
+	}).Edge("write", "write", "next_batch")
 
-	manager.CreateState("lockless_write", stateWrite)
+	output := manager.Output("write", "batch_complete")
 
-	err = manager.Pool.Create()
+	err = manager.Start()
 	if err != nil {
 		panic(err)
 	}
 
 	start := time.Now()
-
-	for i := 0; i < manager.Pool.GetSize(); i++ {
-		stateWrite.Invoke("from_start_to_write", BatchWrite{
+	batch := make([]interface{}, POOL_SIZE)
+	for i := 0; i < manager.GetSize(); i++ {
+		batch[i] = BatchWrite{
 			index:    i,
 			size:     TEST_SIZE / ITERATIONS,
-			poolSize: manager.Pool.GetSize(),
-		})
-	}
-
-	for {
-		count := atomic.LoadInt32(&ops)
-		if count >= 47 {
-			break
+			poolSize: POOL_SIZE,
 		}
-		fmt.Println(count)
 	}
 
-	fmt.Printf("VIZIER completed %+v\n", time.Since(start))
+	wg, err := manager.BatchInvoke("write", batch)
+	if err != nil {
+		panic(err)
+	}
+
+	results := manager.GetResults(wg, POOL_SIZE, output)
+
+	fmt.Printf("Complete %+v\n", results)
+	fmt.Printf("time %+v\n", time.Since(start))
 }

@@ -1,4 +1,4 @@
-module github.com/SuperBadCode/Vizier
+module github.com/SuperBadCode/go-vizier
 
 go 1.13
 
