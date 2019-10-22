@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/SuperBadCode/Vizier/internal"
+	vizier "github.com/SuperBadCode/go-vizier/pkg"
 )
 
 /*
@@ -50,7 +50,7 @@ func divide(payload interface{}) map[string]interface{} {
 }
 
 func main() {
-	manager, err := internal.NewManager("pipeline", 160)
+	manager, err := vizier.NewManager("pipeline", 160)
 	if err != nil {
 		panic(err)
 	}

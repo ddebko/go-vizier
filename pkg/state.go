@@ -79,12 +79,12 @@ func (s State) Invoke(payload interface{}, wg *sync.WaitGroup) {
 func (s State) AttachEdge(name string, pipe chan Packet, isOutput bool) vizierErr {
 	if _, ok := s.edges[name]; ok {
 		detail := fmt.Sprintf("failed to attach edge %s to state %s", name, s.Name)
-		return NewVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
+		return newVizierError(ErrSourceState, ErrMsgEdgeAlreadyExists, detail)
 	}
 
 	if pipe == nil {
 		detail := fmt.Sprintf("channel Packet is nil for edge %s in state %s", name, s.Name)
-		return NewVizierError(ErrSourceState, ErrNsgStateInvalidChan, detail)
+		return newVizierError(ErrSourceState, ErrNsgStateInvalidChan, detail)
 	}
 
 	s.edges[name] = Edge{
@@ -181,7 +181,7 @@ func (s State) log(fields log.Fields) *log.Entry {
 	return log.WithFields(fields)
 }
 
-func NewState(name string, process func(interface{}) map[string]interface{}) State {
+func newState(name string, process func(interface{}) map[string]interface{}) State {
 	buffers := make(map[string]*queue.Queue)
 	buffers[name] = queue.New(1)
 	return State{
