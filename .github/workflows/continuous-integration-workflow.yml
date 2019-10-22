@@ -15,4 +15,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v1
     - name: Go-Vet
-      run: go vet ./pkg/...
+      run: |
+        go vet ./pkg/...
+    - name: 
