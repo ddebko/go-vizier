@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Manager struct {
@@ -21,6 +24,7 @@ func (m *Manager) Node(name string, f func(interface{}) map[string]interface{}) 
 		panic(newVizierError(ErrSourceManager, ErrMsgStateAlreadyExists, detail))
 	}
 
+	m.log(log.Fields{"name": name}).Info("created node")
 	m.states[name] = newState(name, f)
 
 	return m
@@ -36,6 +40,11 @@ func (m *Manager) Output(from, name string) chan Packet {
 		detail := fmt.Sprintf("failed to create output edge %s. source state %s", name, from)
 		panic(newVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, detail))
 	}
+
+	m.log(log.Fields{
+		"node": from,
+		"edge": name,
+	}).Info("created output edge")
 
 	output := make(chan Packet)
 	err := m.states[from].AttachEdge(name, output, true)
@@ -64,6 +73,12 @@ func (m *Manager) Edge(from, to, name string) *Manager {
 		panic(newVizierError(ErrSourceManager, ErrMsgEdgeAlreadyExists, detail))
 	}
 
+	m.log(log.Fields{
+		"from": from,
+		"to":   to,
+		"edge": name,
+	}).Info("created edge")
+
 	err := m.states[from].AttachEdge(edgeName, m.states[to].GetPipe(), false)
 	if err != nil {
 		panic(err)
@@ -80,6 +95,11 @@ func (m *Manager) BatchInvoke(name string, batch []interface{}) (*sync.WaitGroup
 		return nil, newVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
 	}
 
+	m.log(log.Fields{
+		"node": name,
+		"size": len(batch),
+	}).Info("batch invoke")
+
 	for _, payload := range batch {
 		m.states[name].Invoke(payload, &wg)
 	}
@@ -95,6 +115,7 @@ func (m *Manager) Invoke(name string, payload interface{}) (*sync.WaitGroup, viz
 		return nil, newVizierError(ErrSourceManager, ErrMsgStateDoesNotExist, detail)
 	}
 
+	m.log(log.Fields{"node": name}).Info("invoke")
 	m.states[name].Invoke(payload, &wg)
 
 	return &wg, nil
@@ -109,6 +130,8 @@ func (m *Manager) Start() vizierErr {
 		return newVizierError(ErrSourceManager, ErrMsgPoolIsRunning, m.name)
 	}
 
+	m.log(log.Fields{}).Info("started")
+
 	m.run = true
 	for i := 0; i < m.size; i++ {
 		m.spawnWorker()
@@ -121,6 +144,7 @@ func (m *Manager) Stop() vizierErr {
 	if !m.run {
 		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
 	}
+	m.log(log.Fields{}).Info("stopped")
 	m.run = false
 	return nil
 }
@@ -138,6 +162,11 @@ func (m *Manager) SetSize(size int) vizierErr {
 		detail := fmt.Sprintf("%s. invalid size %d", m.name, size)
 		return newVizierError(ErrSourceManager, ErrMsgPoolSizeInvalid, detail)
 	}
+
+	m.log(log.Fields{
+		"old_size": m.size,
+		"new_size": size,
+	}).Info("resize")
 
 	delta := int(math.Abs(float64(m.size - size)))
 	spawn := (size > m.size)
@@ -170,9 +199,14 @@ func (m *Manager) GetResults(wg *sync.WaitGroup, size int, pipe chan Packet) []i
 }
 
 func (m *Manager) spawnWorker() {
+	m.log(log.Fields{}).Info("worker spawned")
+
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
+				m.log(log.Fields{
+					"err": err,
+				}).Warn("worker panic")
 				m.spawnWorker()
 			}
 		}()
@@ -189,6 +223,13 @@ func (m *Manager) spawnWorker() {
 	}()
 }
 
+func (m *Manager) log(fields log.Fields) *log.Entry {
+	fields["source"] = "manager"
+	fields["name"] = m.name
+	fields["time"] = time.Now().UTC().String()
+	return log.WithFields(fields)
+}
+
 func NewManager(name string, size int) (*Manager, error) {
 	states := make(map[string]IState)
 
@@ -198,6 +239,10 @@ func NewManager(name string, size int) (*Manager, error) {
 		size:       size,
 		stopWorker: make(chan bool, size),
 	}
+
+	manager.log(log.Fields{
+		"size": size,
+	}).Info("created manager")
 
 	return &manager, nil
 }
