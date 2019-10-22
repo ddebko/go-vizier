@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/SuperBadCode/Vizier/vizier"
@@ -43,39 +44,23 @@ func main() {
 		panic(err)
 	}
 
-	edgeComplete, err := manager.CreateEdge("complete")
-	if err != nil {
-		panic(err)
-	}
-
-	edgeOutput, err := manager.CreateEdge("output")
-	if err != nil {
-		panic(err)
-	}
-
-	stateComplete := vizier.NewState("complete", func(payload interface{}) interface{} {
-		if value, ok := payload.(bool); ok {
-			return value
-		}
-		return vizier.STOP_STATE
-	})
-	stateComplete.AttachEdge("from_complete_to_output", edgeComplete, edgeOutput)
-
+	var ops int32
 	stateWrite := vizier.NewState("start", func(payload interface{}) interface{} {
 		if batch, ok := payload.(BatchWrite); ok {
+			atomic.AddInt32(&ops, 1)
+
 			startIndex := batch.index * batch.size
 			endIndex := startIndex + batch.size
-
-			if endIndex >= TEST_SIZE {
-				stateComplete.Invoke("from_complete_to_output", true)
-				return vizier.STOP_STATE
-			}
 
 			for i := startIndex; i < endIndex; i++ {
 				dest[i] = rand.Intn(100) + 1
 			}
 
 			batch.index += batch.poolSize
+
+			if (batch.index*batch.size)+batch.size >= TEST_SIZE {
+				return vizier.STOP_STATE
+			}
 			return batch
 		}
 		return vizier.STOP_STATE
@@ -84,7 +69,6 @@ func main() {
 	stateWrite.AttachEdge("from_write_to_start", edgeWrite, edgeStart)
 
 	manager.CreateState("lockless_write", stateWrite)
-	manager.CreateState("lockless_complete", stateComplete)
 
 	err = manager.Pool.Create()
 	if err != nil {
@@ -101,13 +85,12 @@ func main() {
 		})
 	}
 
-	for i := 0; i < manager.Pool.GetSize(); {
-		select {
-		case <-edgeOutput:
-			i++
-		default:
-			continue
+	for {
+		count := atomic.LoadInt32(&ops)
+		if count >= 47 {
+			break
 		}
+		fmt.Println(count)
 	}
 
 	fmt.Printf("VIZIER completed %+v\n", time.Since(start))

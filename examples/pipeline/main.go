@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/SuperBadCode/Vizier/vizier"
+	vizier "github.com/SuperBadCode/go-vizier/pkg"
 )
 
 /*
@@ -17,90 +17,73 @@ import (
 	(s:add) -> (s:subtract) -> (s:multiply) -> (s:divide)
 */
 
+func add(payload interface{}) map[string]interface{} {
+	sendTo := make(map[string]interface{})
+	if value, ok := payload.(int); ok {
+		sendTo["add_to_subtract_step_one"] = value + rand.Intn(100)
+	}
+	return sendTo
+}
+
+func subtract(payload interface{}) map[string]interface{} {
+	sendTo := make(map[string]interface{})
+	if value, ok := payload.(int); ok {
+		sendTo["subtract_to_multiply_step_two"] = value - rand.Intn(100)
+	}
+	return sendTo
+}
+
+func multiply(payload interface{}) map[string]interface{} {
+	sendTo := make(map[string]interface{})
+	if value, ok := payload.(int); ok {
+		sendTo["multiply_to_divide_step_three"] = value * rand.Intn(100)
+	}
+	return sendTo
+}
+
+func divide(payload interface{}) map[string]interface{} {
+	sendTo := make(map[string]interface{})
+	if value, ok := payload.(int); ok {
+		sendTo["output"] = value / (rand.Intn(100) + 1)
+	}
+	return sendTo
+}
+
 func main() {
 	manager, err := vizier.NewManager("pipeline", 160)
 	if err != nil {
 		panic(err)
 	}
 
-	edgeStart, err := manager.CreateEdge("start")
-	if err != nil {
-		panic(err)
-	}
+	manager.Node("add", add).
+		Node("subtract", subtract).
+		Edge("add", "subtract", "step_one").
+		Node("multiply", multiply).
+		Edge("subtract", "multiply", "step_two").
+		Node("divide", divide).
+		Edge("multiply", "divide", "step_three")
 
-	edgeSubtract, err := manager.CreateEdge("subtract")
-	if err != nil {
-		panic(err)
-	}
+	output := manager.Output("divide", "output")
 
-	edgeMultiply, err := manager.CreateEdge("multiply")
-	if err != nil {
-		panic(err)
-	}
-
-	edgeDivide, err := manager.CreateEdge("divide")
-	if err != nil {
-		panic(err)
-	}
-
-	edgeOutput, err := manager.CreateEdge("output")
-	if err != nil {
-		panic(err)
-	}
-
-	stateAdd := vizier.NewState("add", func(payload interface{}) interface{} {
-		if value, ok := payload.(int); ok {
-			return value + rand.Intn(100)
-		}
-		return 0
-	})
-	stateAdd.AttachEdge("from_add_to_subtract", edgeStart, edgeSubtract)
-
-	stateSubtract := vizier.NewState("subtract", func(payload interface{}) interface{} {
-		if value, ok := payload.(int); ok {
-			return value - rand.Intn(100)
-		}
-		return 1
-	})
-	stateSubtract.AttachEdge("from_subtract_to_multiply", edgeSubtract, edgeMultiply)
-
-	stateMultiply := vizier.NewState("multiply", func(payload interface{}) interface{} {
-		if value, ok := payload.(int); ok {
-			return value * rand.Intn(100)
-		}
-		return 2
-	})
-	stateMultiply.AttachEdge("from_multiply_to_divide", edgeMultiply, edgeDivide)
-
-	stateDivide := vizier.NewState("divide", func(payload interface{}) interface{} {
-		if value, ok := payload.(int); ok {
-			return value / (rand.Intn(100) + 1)
-		}
-		return 3
-	})
-	stateDivide.AttachEdge("from_divide_to_output", edgeDivide, edgeOutput)
-
-	manager.CreateState("add", stateAdd)
-	manager.CreateState("subtract", stateSubtract)
-	manager.CreateState("multiply", stateMultiply)
-	manager.CreateState("divide", stateDivide)
-
-	err = manager.Pool.Create()
+	err = manager.Start()
 	if err != nil {
 		panic(err)
 	}
 
 	n := 1000
+	batch := make([]interface{}, n)
 	start := time.Now()
 	for i := 0; i < n; i++ {
-		stateAdd.Invoke("from_add_to_subtract", rand.Intn(100)+1)
+		batch[i] = rand.Intn(100) + 1
+	}
+	wg, err := manager.BatchInvoke("add", batch)
+	if err != nil {
+		panic(err)
+	}
+	results := manager.GetResults(wg, n, output)
+	for i := 0; i < n; i++ {
+		fmt.Printf("DEBUG %+v\n", results[i])
 	}
 
-	for i := 0; i < n; i++ {
-		out := <-edgeOutput
-		if value, ok := out.Payload.(int); ok {
-			fmt.Printf("OUTPUT %+v\n", value)
-		}
-	}
 	fmt.Printf("completed %+v", time.Since(start))
 }

@@ -1,3 +1,4 @@
+github.com/SuperBadCode/go-vizier v0.0.0-20191006204811-f6576495861f h1:/S23qa+fMx47KfCZd95uJ75pAcQY3RqNEpkyeVOR8ng=
 github.com/aws/aws-sdk-go-v2 v0.12.0 h1:bPO4Z7ArhFC9XSfOhO0SgQNIfiLoSKBYzFjvw2qt2BQ=
 github.com/aws/aws-sdk-go-v2 v0.12.0/go.mod h1:cpXCmy3BB+lqwGweJjdawczHW3a+g8QgcFHcoOVoHao=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
