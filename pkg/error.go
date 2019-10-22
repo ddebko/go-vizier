@@ -28,10 +28,6 @@ const (
 )
 
 // Error is a interface that provides different levels of information.
-// Source() provides information on where the error had occured: manager, state, edge, worker
-// Message() provides information on the root cause of the error
-// Details() provides additional information for debugging purposes
-// Err() concats information from source, message, & details into a type error
 type Error interface {
 	error
 	Source() string
@@ -40,36 +36,36 @@ type Error interface {
 	Err() error
 }
 
-type vizierErr Error
+// VizierErr is a type of interface Error
+type VizierErr Error
 
 // VizierError implements the interace Error
 type VizierError struct {
-	vizierErr
+	VizierErr
 	_       struct{}
 	src     source
 	msg     message
 	details string
 }
 
-// Source casts the field src into a string & returns the value
+// Source provides information on where the error had occured: manager, state, edge, worker
 func (v *VizierError) Source() string {
 	return string(v.src)
 }
 
-// Message casts the field msg into a string & returns the value
+// Message provides information on the root cause of the error
 func (v *VizierError) Message() string {
 	return string(v.msg)
 }
 
-// Details returns the field details
+// Details provides additional information for debugging purposes
 func (v *VizierError) Details() string {
 	return v.details
 }
 
-// Err returns the fields src, msg, & details into an error\
-// format [VIZIER] source: %s. message: %s. details: %s.
+// Err concats information from source, message, & details into a type error
 func (v *VizierError) Err() error {
-	return fmt.Errorf("[VIZIER] source: %s. message: %s. details: %s.", v.src, v.msg, v.details)
+	return fmt.Errorf("[vizier] source: %s. message: %s. details: %s", v.src, v.msg, v.details)
 }
 
 func newVizierError(src source, msg message, details string) *VizierError {
