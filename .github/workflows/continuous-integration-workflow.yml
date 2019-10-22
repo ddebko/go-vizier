@@ -19,4 +19,5 @@ jobs:
         go vet ./pkg/...
     - name: Go-Lint
       run: |
+        go get -u golang.org/x/lint/golint
         golint ./pkg/
