@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Manager contains a graph of nodes called States that run tasks concurrenty.
 type Manager struct {
 	_          struct{}
 	name       string
@@ -18,18 +19,20 @@ type Manager struct {
 	stopWorker chan bool
 }
 
-func (m *Manager) Node(name string, f func(interface{}) map[string]interface{}) *Manager {
+// Node creates a new struct State if it does not exist in the current graph.
+func (m *Manager) Node(name string, task func(interface{}) map[string]interface{}) *Manager {
 	if _, ok := m.states[name]; ok {
 		detail := fmt.Sprintf("failed to create state %s.", name)
 		panic(newVizierError(ErrSourceManager, ErrMsgStateAlreadyExists, detail))
 	}
 
 	m.log(log.Fields{"name": name}).Info("created node")
-	m.states[name] = newState(name, f)
+	m.states[name] = newState(name, task)
 
 	return m
 }
 
+// Output creates a new edge if the State named 'from' exists in the graph & returns the channel associated to that edge, name must be a unique edge in State 'from'
 func (m *Manager) Output(from, name string) chan Packet {
 	if _, ok := m.states[from]; !ok {
 		detail := fmt.Sprintf("failed to create output edge %s. source state %s", name, from)
@@ -55,6 +58,7 @@ func (m *Manager) Output(from, name string) chan Packet {
 	return output
 }
 
+// Edge creates a new edge between states: 'from' & 'to', both States must exists in the graph & the edge name must be unqiue in State 'from'
 func (m *Manager) Edge(from, to, name string) *Manager {
 	edgeName := fmt.Sprintf("%s_to_%s_%s", from, to, name)
 
@@ -87,7 +91,8 @@ func (m *Manager) Edge(from, to, name string) *Manager {
 	return m
 }
 
-func (m *Manager) BatchInvoke(name string, batch []interface{}) (*sync.WaitGroup, vizierErr) {
+// BatchInvoke sends a batch of payloads to the State 'name', each payload shares the same WaitGroup
+func (m *Manager) BatchInvoke(name string, batch []interface{}) (*sync.WaitGroup, VizierErr) {
 	var wg sync.WaitGroup
 
 	if _, ok := m.states[name]; !ok {
@@ -107,7 +112,8 @@ func (m *Manager) BatchInvoke(name string, batch []interface{}) (*sync.WaitGroup
 	return &wg, nil
 }
 
-func (m *Manager) Invoke(name string, payload interface{}) (*sync.WaitGroup, vizierErr) {
+// Invoke sends a single payload to the State 'name'
+func (m *Manager) Invoke(name string, payload interface{}) (*sync.WaitGroup, VizierErr) {
 	var wg sync.WaitGroup
 
 	if _, ok := m.states[name]; !ok {
@@ -121,7 +127,8 @@ func (m *Manager) Invoke(name string, payload interface{}) (*sync.WaitGroup, viz
 	return &wg, nil
 }
 
-func (m *Manager) Start() vizierErr {
+// Start spawns a pool of go-routines that will process the payloads for each State in the graph
+func (m *Manager) Start() VizierErr {
 	if len(m.states) < 1 {
 		return newVizierError(ErrSourceManager, ErrMsgPoolEmptyStates, m.name)
 	}
@@ -140,7 +147,8 @@ func (m *Manager) Start() vizierErr {
 	return nil
 }
 
-func (m *Manager) Stop() vizierErr {
+// Stop will destroy all the workers in the current go-routine pool
+func (m *Manager) Stop() VizierErr {
 	if !m.run {
 		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
 	}
@@ -149,11 +157,13 @@ func (m *Manager) Stop() vizierErr {
 	return nil
 }
 
+// GetSize returns the size of the go-routine pool
 func (m *Manager) GetSize() int {
 	return m.size
 }
 
-func (m *Manager) SetSize(size int) vizierErr {
+// SetSize adjusts the size of the go-routine pool
+func (m *Manager) SetSize(size int) VizierErr {
 	if !m.run {
 		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
 	}
@@ -182,6 +192,7 @@ func (m *Manager) SetSize(size int) vizierErr {
 	return nil
 }
 
+// GetResults waits until a certain batch size of payloads are completed & the output is returned
 func (m *Manager) GetResults(wg *sync.WaitGroup, size int, pipe chan Packet) []interface{} {
 	results := make([]interface{}, size)
 	isWaiting := true
@@ -230,6 +241,7 @@ func (m *Manager) log(fields log.Fields) *log.Entry {
 	return log.WithFields(fields)
 }
 
+// NewManager creates an empty graph
 func NewManager(name string, size int) (*Manager, error) {
 	states := make(map[string]IState)
 
