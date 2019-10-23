@@ -1,7 +1,8 @@
-package internal
+package pkg
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"sync"
 	"time"
@@ -209,6 +210,16 @@ func (m *Manager) GetResults(wg *sync.WaitGroup, size int, pipe chan Packet) []i
 	return results
 }
 
+// SetLogLevel will adjust the log entries with that severity or anything above it
+func (m *Manager) SetLogLevel(level log.Level) {
+	log.SetLevel(level)
+}
+
+// DisableLogging will completely removing logs
+func (m *Manager) DisableLogging() {
+	log.SetOutput(ioutil.Discard)
+}
+
 func (m *Manager) spawnWorker() {
 	m.log(log.Fields{}).Info("worker spawned")
 
@@ -243,6 +254,11 @@ func (m *Manager) log(fields log.Fields) *log.Entry {
 
 // NewManager creates an empty graph
 func NewManager(name string, size int) (*Manager, error) {
+	if size <= 0 {
+		detail := fmt.Sprintf("%s. invalid size %d", name, size)
+		return nil, newVizierError(ErrSourceManager, ErrMsgPoolSizeInvalid, detail).Err()
+	}
+
 	states := make(map[string]IState)
 
 	manager := Manager{
