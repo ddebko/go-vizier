@@ -13,10 +13,10 @@ import (
 
 //
 var (
-	BufferSizeWarning int64       = 1000
-	WarningIncrements int64       = 100
-	ChannelSize       int         = 1000
-	StopState         interface{} = nil
+	BufferSizeWarning = 1000
+	WarningIncrements = 100
+	ChannelSize       = 1000
+	StopState         interface{}
 )
 
 // Packet is sent between States through edges or output edges & contain the payloads that are created from the previous State's task function.

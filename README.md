@@ -10,6 +10,5 @@ Vizier is a tool for concurrency abstraction using a state design architecture f
 - Observer For The Worker Pool To Record Statistics On States/Edges
 - Detect & Fail On Edge Cycle Within Manager
 - Unit Test Coverage
-- Test Code Climate
 - Examples
     - DynamoDB
