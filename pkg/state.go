@@ -79,7 +79,11 @@ func (s State) Invoke(payload interface{}, wg *sync.WaitGroup) {
 	select {
 	case s.pipe <- packet:
 	default:
-		s.buffers[s.Name].Put(packet)
+		err := s.buffers[s.Name].Put(packet)
+		if err != nil {
+			details := fmt.Sprintf("packet: %+v, state %s, err %s", packet, s.Name, err.Error())
+			fmt.Println(newVizierError(ErrSourceState, ErrMsgStateBufferErr, details).Err())
+		}
 	}
 }
 
@@ -92,7 +96,7 @@ func (s State) AttachEdge(name string, pipe chan Packet, isOutput bool) VizierEr
 
 	if pipe == nil {
 		detail := fmt.Sprintf("channel Packet is nil for edge %s in state %s", name, s.Name)
-		return newVizierError(ErrSourceState, ErrNsgStateInvalidChan, detail)
+		return newVizierError(ErrSourceState, ErrMsgStateInvalidChan, detail)
 	}
 
 	s.edges[name] = Edge{
@@ -179,7 +183,11 @@ func (s State) sendPacket(name string, packet Packet) {
 		}
 		traceDetails.Info("packet sent to edge")
 	default:
-		s.buffers[name].Put(packet)
+		err := s.buffers[name].Put(packet)
+		if err != nil {
+			details := fmt.Sprintf("packet: %+v, state %s, edge %s, error %s", packet, s.Name, name, err.Error())
+			fmt.Println(newVizierError(ErrSourceState, ErrMsgStateBufferErr, details).Err())
+		}
 		traceDetails.Info("packet pushed to buffer")
 	}
 }

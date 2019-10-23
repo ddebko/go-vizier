@@ -2,8 +2,6 @@ package internal
 
 import (
 	"fmt"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type source string
@@ -18,7 +16,8 @@ const (
 	ErrMsgManagerCycle       message = "cycle detected in graph"
 	ErrMsgStateAlreadyExists message = "state already exists"
 	ErrMsgStateDoesNotExist  message = "state does not exist"
-	ErrNsgStateInvalidChan   message = "channel cannot be nil"
+	ErrMsgStateInvalidChan   message = "channel cannot be nil"
+	ErrMsgStateBufferErr     message = "failed to push to queue"
 	ErrMsgEdgeAlreadyExists  message = "edge already exists"
 	ErrMsgEdgeDoesNotExist   message = "edge does not exist"
 	ErrMsgPoolNotRunning     message = "pool is not running"
@@ -69,10 +68,6 @@ func (v *VizierError) Err() error {
 }
 
 func newVizierError(src source, msg message, details string) *VizierError {
-	log.WithFields(log.Fields{
-		"source":  src,
-		"details": details,
-	}).Warn(msg)
 	return &VizierError{
 		src:     src,
 		msg:     msg,
