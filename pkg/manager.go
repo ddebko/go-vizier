@@ -151,7 +151,7 @@ func (m *Manager) Start() VizierErr {
 // Stop will destroy all the workers in the current go-routine pool
 func (m *Manager) Stop() VizierErr {
 	if !m.run {
-		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
+		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, m.name)
 	}
 	m.log(log.Fields{}).Info("stopped")
 	m.run = false
@@ -165,8 +165,8 @@ func (m *Manager) GetSize() int {
 
 // SetSize adjusts the size of the go-routine pool
 func (m *Manager) SetSize(size int) VizierErr {
-	if !m.run {
-		return newVizierError(ErrSourceManager, ErrMsgPoolNotRunning, "")
+	if len(m.states) < 1 {
+		return newVizierError(ErrSourceManager, ErrMsgPoolEmptyStates, m.name)
 	}
 
 	if size <= 0 {
@@ -210,16 +210,6 @@ func (m *Manager) GetResults(wg *sync.WaitGroup, size int, pipe chan Packet) []i
 	return results
 }
 
-// SetLogLevel will adjust the log entries with that severity or anything above it
-func (m *Manager) SetLogLevel(level log.Level) {
-	log.SetLevel(level)
-}
-
-// DisableLogging will completely removing logs
-func (m *Manager) DisableLogging() {
-	log.SetOutput(ioutil.Discard)
-}
-
 func (m *Manager) spawnWorker() {
 	m.log(log.Fields{}).Info("worker spawned")
 
@@ -250,6 +240,16 @@ func (m *Manager) log(fields log.Fields) *log.Entry {
 	fields["name"] = m.name
 	fields["time"] = time.Now().UTC().String()
 	return log.WithFields(fields)
+}
+
+// SetLogLevel will adjust the log entries with that severity or anything above it
+func SetLogLevel(level log.Level) {
+	log.SetLevel(level)
+}
+
+// DisableLogging will completely removing logs
+func DisableLogging() {
+	log.SetOutput(ioutil.Discard)
 }
 
 // NewManager creates an empty graph
