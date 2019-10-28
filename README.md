@@ -16,4 +16,3 @@ image credit: edited version of [ashleymcnamara's mic drop gopher](https://twitt
 - Unit Test Coverage
 - Examples
     - DynamoDB
-  -
