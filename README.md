@@ -1,6 +1,10 @@
 # VIZIER
 Vizier is a tool for concurrency abstraction using a state design architecture for Go (golang).
 
+![thread-drop](./img/gopher-thread-drop.png "thread drop gopher")
+
+image credit: edited version of [ashleymcnamara's mic drop gopher](https://twitter.com/ashleymcnamara/status/860462810819702784) + [thread clipart](http://clipart-library.com/clipart/8TzrpBdRc.htm)
+
 ### TODO
 
 - Invoke States Inline
