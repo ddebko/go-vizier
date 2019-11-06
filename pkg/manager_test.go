@@ -362,15 +362,65 @@ func TestSetSize(t *testing.T) {
 	})
 }
 
+func TestRecover(t *testing.T) {
+	Convey("When a worker panics", t, func() {
+		Convey("a new worker will spawn", func() {
+			manager, err := NewManager("test", 1)
+			So(err, ShouldBeNil)
+			So(manager, ShouldNotBeNil)
+
+			manager.Node("test", func(payload interface{}) map[string]interface{} {
+				panic("testing recover")
+				return map[string]interface{}{}
+			})
+
+			vizErr := manager.Start()
+			So(vizErr, ShouldBeNil)
+			So(runtime.NumGoroutine(), ShouldEqual, 3)
+
+			_, vizErr = manager.Invoke("test", "hello world")
+			time.Sleep(100 * time.Millisecond)
+			So(vizErr, ShouldBeNil)
+			So(runtime.NumGoroutine(), ShouldEqual, 3)
+
+			vizErr = manager.Stop()
+			So(vizErr, ShouldBeNil)
+		})
+	})
+}
+
 func TestInvoke(t *testing.T) {
 	Convey("When invoking a state", t, func() {
+		Convey("the payload is processed", func() {
+			manager, err := NewManager("test", 1)
+			So(err, ShouldBeNil)
+			So(manager, ShouldNotBeNil)
 
+			manager.Node("test", func(payload interface{}) map[string]interface{} {
+				return map[string]interface{}{}
+			})
+
+			vizErr := manager.Start()
+			So(vizErr, ShouldBeNil)
+
+			_, vizErr = manager.Invoke("dne", "hello world")
+			So(vizErr, ShouldNotBeNil)
+			So(vizErr.Err().Error(), ShouldEqual, "[vizier] source: manager. message: state does not exist. details: failed to invoke state dne.")
+
+			_, vizErr = manager.Invoke("test", "hello world")
+			So(vizErr, ShouldBeNil)
+
+			vizErr = manager.Stop()
+			So(vizErr, ShouldBeNil)
+		})
 	})
 }
 
 func TestBatchInvoke(t *testing.T) {
-	Convey("when batch invoking a state", t, func() {
+	Convey("When batch invoking a state", t, func() {
+		Convey("the payload is processed", func() {
 
+		})
 	})
 }
 
